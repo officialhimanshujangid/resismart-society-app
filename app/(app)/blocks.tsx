@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, FlatList, TouchableOpacity, Alert, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { Appbar, Text, FAB, Portal, Dialog, TextInput, Button, ActivityIndicator, IconButton } from 'react-native-paper';
 import { Colors } from '../../src/constants/colors';
 import { apiClient as api } from '../../src/api/axios';
@@ -135,37 +135,52 @@ export default function BlocksScreen() {
 
       <Portal>
         <Dialog visible={visible} onDismiss={closeModal} style={styles.dialog}>
-          <Dialog.Title>{editingId ? 'Edit Block' : 'Add Block'}</Dialog.Title>
+          <Dialog.Title style={{ color: Colors.textPrimary, fontWeight: 'bold' }}>
+            {editingId ? 'Edit Block' : 'Add Block'}
+          </Dialog.Title>
           <Dialog.Content>
-            <TextInput
-              label="Block Name *"
-              mode="outlined"
-              value={name}
-              onChangeText={setName}
-              style={styles.input}
-              activeOutlineColor={Colors.primary}
-            />
-            <TextInput
-              label="Total Floors"
-              mode="outlined"
-              keyboardType="numeric"
-              value={totalFloors}
-              onChangeText={setTotalFloors}
-              style={styles.input}
-              activeOutlineColor={Colors.primary}
-            />
-            <TextInput
-              label="Block Type (e.g. Residential)"
-              mode="outlined"
-              value={blockType}
-              onChangeText={setBlockType}
-              style={styles.input}
-              activeOutlineColor={Colors.primary}
-            />
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <TextInput
+                  label="Block Name *"
+                  mode="outlined"
+                  value={name}
+                  onChangeText={setName}
+                  style={styles.input}
+                  outlineColor={Colors.border}
+                  activeOutlineColor={Colors.primary}
+                  textColor={Colors.textPrimary}
+                  theme={{ colors: { onSurfaceVariant: Colors.textSecondary } }}
+                />
+                <TextInput
+                  label="Total Floors"
+                  mode="outlined"
+                  keyboardType="numeric"
+                  value={totalFloors}
+                  onChangeText={setTotalFloors}
+                  style={styles.input}
+                  outlineColor={Colors.border}
+                  activeOutlineColor={Colors.primary}
+                  textColor={Colors.textPrimary}
+                  theme={{ colors: { onSurfaceVariant: Colors.textSecondary } }}
+                />
+                <TextInput
+                  label="Block Type (e.g. Residential)"
+                  mode="outlined"
+                  value={blockType}
+                  onChangeText={setBlockType}
+                  style={styles.input}
+                  outlineColor={Colors.border}
+                  activeOutlineColor={Colors.primary}
+                  textColor={Colors.textPrimary}
+                  theme={{ colors: { onSurfaceVariant: Colors.textSecondary } }}
+                />
+              </ScrollView>
+            </KeyboardAvoidingView>
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={closeModal} textColor={Colors.textSecondary}>Cancel</Button>
-            <Button onPress={handleSubmit} textColor={Colors.primary} loading={submitting}>Save</Button>
+            <Button onPress={handleSubmit} textColor={Colors.primary} loading={submitting} labelStyle={{ fontWeight: 'bold' }}>Save</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
