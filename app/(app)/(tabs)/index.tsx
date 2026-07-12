@@ -7,7 +7,8 @@ import { useAuth } from '../../../src/context/AuthContext';
 import { Colors } from '../../../src/constants/colors';
 
 export default function DashboardScreen() {
-  const { user, profile, logout } = useAuth();
+  const { user, activeContext, availableContexts, switchContext, logout } = useAuth();
+  const [showSwitch, setShowSwitch] = React.useState(false);
 
   return (
     <View style={styles.root}>
@@ -31,13 +32,49 @@ export default function DashboardScreen() {
           color={Colors.primary}
         />
         <View style={styles.profileInfo}>
-          <Text style={styles.profileLabel}>Active Profile</Text>
-          <Text style={styles.profileRole}>{profile?.role ?? 'N/A'}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={styles.profileLabel}>Active Profile</Text>
+            {availableContexts && availableContexts.length > 1 && (
+              <TouchableOpacity onPress={() => setShowSwitch(!showSwitch)} style={{ paddingVertical: 2, paddingHorizontal: 6, backgroundColor: Colors.surfaceVariant, borderRadius: 4 }}>
+                <Text style={{ color: Colors.primary, fontSize: 11, fontWeight: 'bold' }}>SWITCH</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <Text style={styles.profileRole}>{activeContext?.role ?? 'N/A'}</Text>
           <Text style={styles.profileTenant} numberOfLines={1}>
-            {profile?.tenantType === 'SOCIETY' ? 'Society' : 'Shop'} · {profile?.tenantId ?? '—'}
+            {activeContext?.tenantType === 'SOCIETY' ? 'Society' : 'Shop'} · {activeContext?.tenantName ?? activeContext?.tenantId ?? '—'}
           </Text>
         </View>
       </Surface>
+
+      {/* Context Switcher List */}
+      {showSwitch && availableContexts && availableContexts.length > 1 && (
+        <View style={{ marginBottom: 24, gap: 10 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.textSecondary }}>Switch to:</Text>
+          {availableContexts
+            .filter(c => c.contextId !== activeContext?.contextId)
+            .map(ctx => (
+              <TouchableOpacity
+                key={ctx.contextId}
+                onPress={async () => {
+                  const success = await switchContext(ctx.contextId);
+                  if (success) setShowSwitch(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Surface style={[styles.profileCard, { marginBottom: 0, padding: 12, backgroundColor: Colors.surface }]} elevation={1}>
+                  <Avatar.Icon size={40} icon="account-switch-outline" style={{ backgroundColor: Colors.surfaceVariant }} color={Colors.textSecondary} />
+                  <View style={styles.profileInfo}>
+                    <Text style={[styles.profileRole, { fontSize: 15 }]}>{ctx.role}</Text>
+                    <Text style={styles.profileTenant} numberOfLines={1}>
+                      {ctx.tenantType === 'SOCIETY' ? 'Society' : 'Shop'} · {ctx.tenantName ?? ctx.tenantId}
+                    </Text>
+                  </View>
+                </Surface>
+              </TouchableOpacity>
+            ))}
+        </View>
+      )}
 
       {/* Placeholder tiles */}
       <View style={styles.tilesGrid}>

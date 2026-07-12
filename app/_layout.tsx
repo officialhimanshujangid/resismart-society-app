@@ -30,7 +30,7 @@ function RootLayoutInner() {
   useEffect(() => {
     if (isLoading) return;
     if (isAuthenticated) {
-      router.replace('/(app)');
+      router.replace('/');
     } else {
       router.replace('/(auth)/login');
     }

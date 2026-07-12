@@ -18,6 +18,7 @@ interface AppInputProps {
   disabled?: boolean;
   multiline?: boolean;
   numberOfLines?: number;
+  maxLength?: number;
   style?: object;
 }
 
@@ -36,6 +37,7 @@ export function AppInput({
   disabled = false,
   multiline = false,
   numberOfLines,
+  maxLength,
   style,
 }: AppInputProps) {
   const [isSecureVisible, setIsSecureVisible] = useState(false);
@@ -55,6 +57,7 @@ export function AppInput({
         disabled={disabled}
         multiline={multiline}
         numberOfLines={numberOfLines}
+        maxLength={maxLength}
         mode="outlined"
         error={!!error}
         outlineStyle={styles.outline}

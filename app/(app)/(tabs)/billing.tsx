@@ -443,7 +443,7 @@ function InvoiceRow({
 
 // ─────────────── BillingScreen ───────────────
 export default function BillingScreen() {
-  const { user, profile } = useAuth();
+  const { user, activeContext } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -480,7 +480,7 @@ export default function BillingScreen() {
   }, []);
 
   const fetchPlans = useCallback(async () => {
-    const module = profile?.tenantType === 'shop' ? 'shop' : 'society';
+    const module = activeContext?.tenantType === 'SHOP' ? 'shop' : 'society';
     const { data } = await billingApi.getPublicPlans(module);
     const ps: Plan[] = data.plans || [];
     setPlans(ps);
@@ -488,7 +488,7 @@ export default function BillingScreen() {
     const defaults: Record<string, string> = {};
     ps.forEach((p) => (defaults[p._id] = 'yearly'));
     setTenureByPlan(defaults);
-  }, [profile]);
+  }, [activeContext]);
 
   const fetchInvoices = useCallback(async () => {
     setInvLoading(true);
@@ -744,7 +744,7 @@ export default function BillingScreen() {
         <View style={styles.pageHeader}>
           <TouchableOpacity
             style={styles.backBtn}
-            onPress={() => router.canGoBack() ? router.back() : router.replace('/(app)')}
+            onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >

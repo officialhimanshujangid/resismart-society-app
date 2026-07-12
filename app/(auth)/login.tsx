@@ -18,51 +18,32 @@ import {
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
-import { Text, Modal, Portal, Divider } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Toast from 'react-native-toast-message';
 
-import { useAuth, LoginResult } from '../../src/context/AuthContext';
-import { ProfileInfo } from '../../src/api/auth.api';
+import { useAuth } from '../../src/context/AuthContext';
 import { AppButton } from '../../src/components/AppButton';
 import { AppInput } from '../../src/components/AppInput';
 import { AppLogo } from '../../src/components/AppLogo';
-import { ContextPicker } from '../../src/components/ContextPicker';
-import { LoadingOverlay } from '../../src/components/LoadingOverlay';
 import { Colors } from '../../src/constants/colors';
-
-// ── Validation Schema ──────────────────────────────────────────────────────────
-const loginSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
-  password: z.string().min(1, 'Password is required').min(6, 'Password must be at least 6 characters'),
-});
-
-type LoginFormData = z.infer<typeof loginSchema>;
 
 // ── Screen ─────────────────────────────────────────────────────────────────────
 export default function LoginScreen() {
-  const { login, selectContext } = useAuth();
+  const { login, loginOtpRequest, loginOtpVerify } = useAuth();
 
   const [isLoading, setIsLoading] = useState(false);
-
-  const [contextModal, setContextModal] = useState(false);
-  const [pendingProfiles, setPendingProfiles] = useState<ProfileInfo[]>([]);
-  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
-  const [contextLoading, setContextLoading] = useState(false);
-
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
-  });
+  
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  
+  const [mode, setMode] = useState<'otp' | 'password'>('otp');
+  const [otpStep, setOtpStep] = useState<'identifier' | 'code'>('identifier');
+  const [devCode, setDevCode] = useState<string | null>(null);
+  const [infoText, setInfoText] = useState<string | null>(null);
 
   const showSnack = (message: string, error = false) =>
     Toast.show({
@@ -72,48 +53,75 @@ export default function LoginScreen() {
       position: 'top',
     });
 
-  const onSubmit = async (data: LoginFormData) => {
+  const handleSendCode = async () => {
+    if (!identifier.trim()) {
+      showSnack('Please enter your email or phone number.', true);
+      return;
+    }
     setIsLoading(true);
-    try {
-      const result: LoginResult = await login(data.email, data.password);
-
-      if (result.success) {
-        router.replace('/(app)');
-        return;
+    const res = await loginOtpRequest(identifier.trim());
+    setIsLoading(false);
+    
+    if (res.success) {
+      setDevCode(res.devCode || null);
+      if (res.devCode) {
+        setInfoText(`Dev Mode: Your OTP is ${res.devCode}`);
+      } else {
+        setInfoText(res.channel === 'EMAIL' ? 'A code was emailed to you.' : 'A code was sent via SMS.');
       }
-
-      if (result.requiresContextSelection && result.profiles && result.userId) {
-        setPendingProfiles(result.profiles);
-        setPendingUserId(result.userId);
-        setContextModal(true);
-        return;
-      }
-
-      showSnack(result.error ?? 'Login failed. Please try again.', true);
-    } finally {
-      setIsLoading(false);
+      setOtpStep('code');
+    } else {
+      showSnack(res.error || 'Failed to send OTP.', true);
     }
   };
 
-  const handleContextSelect = async (profile: ProfileInfo) => {
-    if (!pendingUserId) return;
-    setContextLoading(true);
-    try {
-      await selectContext(pendingUserId, profile.tenantId, profile.role);
-      setContextModal(false);
-      router.replace('/(app)');
-    } catch (err: any) {
-      showSnack(err?.response?.data?.error ?? 'Context selection failed.', true);
-    } finally {
-      setContextLoading(false);
+  const handleVerifyCode = async () => {
+    if (otpCode.length < 6) {
+      showSnack('Please enter the 6-digit code.', true);
+      return;
     }
+    setIsLoading(true);
+    const res = await loginOtpVerify(identifier.trim(), otpCode);
+    setIsLoading(false);
+    
+    if (res.success) {
+      router.replace('/');
+    } else {
+      showSnack(res.error || 'Verification failed.', true);
+    }
+  };
+
+  const handlePasswordLogin = async () => {
+    if (!identifier.trim() || !password.trim()) {
+      showSnack('Please enter your identifier and password.', true);
+      return;
+    }
+    setIsLoading(true);
+    const res = await login(identifier.trim(), password);
+    setIsLoading(false);
+    
+    if (res.success) {
+      router.replace('/');
+    } else if (res.useOtp) {
+      setMode('otp');
+      setOtpStep('identifier');
+      showSnack('This account requires an OTP. Please request a code.', true);
+    } else {
+      showSnack(res.error || 'Login failed.', true);
+    }
+  };
+
+  const resetOtp = () => {
+    setOtpStep('identifier');
+    setOtpCode('');
+    setDevCode(null);
+    setInfoText(null);
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.root} edges={['bottom']}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-      {/* Outer KAV wraps the entire screen so it shifts everything up on Android too */}
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -126,7 +134,6 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* Gradient Hero — no fixed height, shrinks naturally on scroll */}
           <LinearGradient
             colors={[Colors.gradientStart, Colors.gradientEnd, Colors.secondary]}
             locations={[0, 0.6, 1]}
@@ -137,63 +144,109 @@ export default function LoginScreen() {
             </View>
           </LinearGradient>
 
-          {/* Card sits directly below the gradient */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Welcome Back</Text>
-            <Text style={styles.cardSubtitle}>Sign in to your society account</Text>
+            <Text style={styles.cardSubtitle}>
+              {mode === 'otp' ? 'Sign in with a one-time code' : 'Sign in with your password'}
+            </Text>
+
+            {infoText && (
+              <View style={styles.infoBox}>
+                <Text style={styles.infoText}>{infoText}</Text>
+              </View>
+            )}
 
             <View style={styles.form}>
-              <Controller
-                control={control}
-                name="email"
-                render={({ field: { onChange, onBlur, value } }) => (
+              {mode === 'otp' ? (
+                otpStep === 'identifier' ? (
+                  <>
+                    <AppInput
+                      label="Email or Phone Number"
+                      value={identifier}
+                      onChangeText={setIdentifier}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      leftIcon="account-outline"
+                    />
+                    <AppButton
+                      label="Send Code"
+                      onPress={handleSendCode}
+                      loading={isLoading}
+                      style={styles.actionButton}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <AppInput
+                      label="6-Digit Code"
+                      value={otpCode}
+                      onChangeText={setOtpCode}
+                      keyboardType="numeric"
+                      maxLength={6}
+                      leftIcon="key-outline"
+                    />
+                    <AppButton
+                      label="Verify Code"
+                      onPress={handleVerifyCode}
+                      loading={isLoading}
+                      style={styles.actionButton}
+                    />
+                    <TouchableOpacity onPress={resetOtp} style={styles.linkButton}>
+                      <Text style={styles.linkText}>Change Email/Phone</Text>
+                    </TouchableOpacity>
+                  </>
+                )
+              ) : (
+                <>
                   <AppInput
-                    label="Email Address"
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    error={errors.email?.message}
+                    label="Email or Phone Number"
+                    value={identifier}
+                    onChangeText={setIdentifier}
                     keyboardType="email-address"
                     autoCapitalize="none"
-                    autoComplete="email"
-                    leftIcon="email-outline"
+                    leftIcon="account-outline"
                   />
-                )}
-              />
-
-              <Controller
-                control={control}
-                name="password"
-                render={({ field: { onChange, onBlur, value } }) => (
                   <AppInput
                     label="Password"
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    error={errors.password?.message}
+                    value={password}
+                    onChangeText={setPassword}
                     secureTextEntry
                     autoCapitalize="none"
-                    autoComplete="password"
                     leftIcon="lock-outline"
                   />
-                )}
-              />
+                  <TouchableOpacity
+                    onPress={() => router.push('/(auth)/forgot-password')}
+                    style={styles.forgotLink}
+                  >
+                    <Text style={styles.linkText}>Forgot Password?</Text>
+                  </TouchableOpacity>
+                  <AppButton
+                    label="Sign In"
+                    onPress={handlePasswordLogin}
+                    loading={isLoading}
+                    icon="login"
+                    style={styles.actionButton}
+                  />
+                </>
+              )}
+
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>OR</Text>
+                <View style={styles.dividerLine} />
+              </View>
 
               <TouchableOpacity
-                onPress={() => router.push('/(auth)/forgot-password')}
-                style={styles.forgotLink}
-                activeOpacity={0.7}
+                onPress={() => {
+                  setMode(mode === 'otp' ? 'password' : 'otp');
+                  resetOtp();
+                }}
+                style={styles.switchModeButton}
               >
-                <Text style={styles.forgotText}>Forgot Password?</Text>
+                <Text style={styles.switchModeText}>
+                  {mode === 'otp' ? 'Sign in with Password' : 'Sign in with OTP'}
+                </Text>
               </TouchableOpacity>
-
-              <AppButton
-                label="Sign In"
-                onPress={handleSubmit(onSubmit)}
-                loading={isLoading}
-                icon="login"
-                style={styles.signInButton}
-              />
             </View>
 
             <View style={styles.footer}>
@@ -204,28 +257,6 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Context Selection Modal */}
-      <Portal>
-        <Modal
-          visible={contextModal}
-          onDismiss={() => setContextModal(false)}
-          contentContainerStyle={styles.modal}
-        >
-          <Text style={styles.modalTitle}>Select Your Profile</Text>
-          <Text style={styles.modalSubtitle}>
-            You have multiple profiles. Please select one to continue.
-          </Text>
-          <Divider style={styles.divider} />
-          {contextLoading ? (
-            <LoadingOverlay visible message="Selecting profile..." />
-          ) : (
-            <ContextPicker profiles={pendingProfiles} onSelect={handleContextSelect} />
-          )}
-        </Modal>
-      </Portal>
-
-
     </SafeAreaView>
   );
 }
@@ -242,8 +273,8 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   gradient: {
-    paddingTop: 40,
-    paddingBottom: 40,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight! + 20 : 60,
+    paddingBottom: 60,
     justifyContent: 'center',
   },
   heroContent: {
@@ -274,10 +305,32 @@ const styles = StyleSheet.create({
   cardSubtitle: {
     fontSize: 14,
     color: Colors.textSecondary,
-    marginBottom: 28,
+    marginBottom: 20,
+  },
+  infoBox: {
+    backgroundColor: '#e0f2fe',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  infoText: {
+    color: '#0369a1',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   form: {
     gap: 4,
+  },
+  actionButton: {
+    marginTop: 12,
+  },
+  linkButton: {
+    alignSelf: 'center',
+    marginTop: 16,
+    padding: 8,
   },
   forgotLink: {
     alignSelf: 'flex-end',
@@ -286,13 +339,38 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 2,
   },
-  forgotText: {
+  linkText: {
     color: Colors.primaryLight,
     fontWeight: '600',
     fontSize: 14,
   },
-  signInButton: {
-    marginTop: 8,
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.divider,
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    color: Colors.textDisabled,
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  switchModeButton: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.primaryLight,
+    alignItems: 'center',
+  },
+  switchModeText: {
+    color: Colors.primaryLight,
+    fontWeight: '700',
+    fontSize: 15,
   },
   footer: {
     marginTop: 32,
@@ -302,25 +380,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textDisabled,
     textAlign: 'center',
-  },
-  // Modal
-  modal: {
-    backgroundColor: Colors.surface,
-    borderRadius: 24,
-    marginHorizontal: 20,
-    padding: 24,
-    gap: 12,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-  },
-  divider: {
-    marginVertical: 4,
   },
 });

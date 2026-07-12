@@ -1,8 +1,8 @@
 import { apiClient } from './axios';
 
 export interface LoginRequest {
-  email: string;
-  password: string;
+  identifier: string; // Updated from email
+  password?: string;
 }
 
 export interface ProfileInfo {
@@ -14,32 +14,43 @@ export interface ProfileInfo {
 export interface UserInfo {
   name: string;
   email: string;
+  phone?: string;
 }
 
-export interface LoginResponse {
-  message: string;
-  autoSelected: boolean;
-  token?: string;
-  refreshToken?: string;
-  profile?: ProfileInfo;
-  user?: UserInfo;
-  // Multi-profile case
-  requiresContextSelection?: boolean;
-  profiles?: ProfileInfo[];
-  userId?: string;
-}
-
-export interface SelectContextRequest {
-  userId: string;
+export interface IContext {
+  contextId: string;
+  kind: 'SOCIETY_UNIT' | 'SHOP' | 'ADMIN';
+  tenantType: 'SYSTEM' | 'SOCIETY' | 'SHOP';
   tenantId: string;
+  tenantName: string;
+  unitType: 'FLAT' | 'SHOP' | null;
+  unitId: string | null;
+  unitLabel: string | null;
   role: string;
 }
 
-export interface SelectContextResponse {
-  message: string;
-  token: string;
-  refreshToken: string;
-  profile: ProfileInfo;
+export interface LoginResponse {
+  message?: string;
+  useOtp?: boolean;
+  token?: string;
+  refreshToken?: string;
+  activeContext?: IContext;
+  availableContexts?: IContext[];
+  user?: UserInfo;
+}
+
+export interface OtpRequestData {
+  identifier: string;
+}
+
+export interface OtpRequestResponse {
+  devCode?: string;
+  channel?: string;
+}
+
+export interface OtpVerifyData {
+  identifier: string;
+  code: string;
 }
 
 export interface ForgotPasswordRequest {
@@ -54,12 +65,15 @@ export const authApi = {
   login: (data: LoginRequest) =>
     apiClient.post<LoginResponse>('/auth/login', data),
 
-  selectContext: (data: SelectContextRequest) =>
-    apiClient.post<SelectContextResponse>('/auth/select-context', data),
+  loginOtpRequest: (data: OtpRequestData) =>
+    apiClient.post<OtpRequestResponse>('/auth/login/otp/request', data),
+
+  loginOtpVerify: (data: OtpVerifyData) =>
+    apiClient.post<LoginResponse>('/auth/login/otp/verify', data),
 
   forgotPassword: (data: ForgotPasswordRequest) =>
     apiClient.post<ForgotPasswordResponse>('/auth/forgot-password', data),
 
-  refreshToken: (refreshToken: string, tenantId?: string, role?: string) =>
-    apiClient.post('/auth/refresh-token', { refreshToken, tenantId, role }),
+  refreshToken: (refreshToken: string, contextId?: string) =>
+    apiClient.post('/auth/refresh-token', { refreshToken, contextId }),
 };
